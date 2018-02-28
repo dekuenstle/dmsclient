@@ -77,56 +77,24 @@ def print_events(events):
     print(tabulate(sorted(table), headers=['Name', 'Price Group', 'Active']))
 
 
-def show(dms, args):
+def show(client, args):
     if args['user']:
-        print_users([dms.current_profile])
+        print_users([client.current_profile])
     elif args['users']:
-        print_users(dms.profiles)
+        print_users(client.profiles)
     elif args['orders']:
-        print_sale_entries(dms, dms.orders)
+        print_sale_entries(client, client.orders)
     elif args['sale']:
         days = int(args['--days'])
-        print_sale_entries(dms, dms.sale_history(days))
+        print_sale_entries(client, client.sale_history(days))
     elif args['products']:
-        print_products(dms.products)
+        print_products(client.products)
     elif args['comments']:
-        print_comments(dms, dms.comments)
+        print_comments(client, client.comments)
     elif args['events']:
-        print_events(dms.events)
+        print_events(client.events)
     else:
         raise NotImplementedError()
-
-
-def search_interactive(query, choices):
-    regex = re.compile(query.replace("*", ".*").replace(" ", ".*"),
-                       re.IGNORECASE | re.DOTALL)
-    choices = [(i, c) for i, c in enumerate(choices)
-               if regex.search(c) is not None]
-    if len(choices) > 5:
-        print("Way too many like '{}' found.".format(query))
-        exit(1)
-    elif len(choices) > 1:
-        for i, (_, c) in enumerate(choices):
-            print("({}) {}".format(i+1, c))
-        choice_id = int(input("Please enter a number between 1 and {}: "
-                              .format(len(choices)))) - 1
-        if choice_id < 0 or choice_id >= len(choices):
-            print("Selected nothing available, stupid.")
-            exit(1)
-        return choices[choice_id][0]
-    elif len(choices) == 1:
-        return choices[0][0]
-    elif len(choices) == 0:
-        print("Nothing like '{}' found.".format(query))
-        exit(1)
-
-
-def search_profile_interactive(dms, user_query):
-    profiles = [u for u in dms.profiles if u.allowed_buy]
-    user_names = ["{} {} {}".format(u.first_name, u.last_name, u.user_name)
-                  for u in profiles]
-    user_index = search_interactive(user_query, user_names)
-    return profiles[user_index]
 
 
 def select_yes_no(question, default_yes=True):
@@ -147,22 +115,45 @@ def select_yes_no(question, default_yes=True):
         exit(1)
 
 
-def _general_sale(dms, args, upper_type, function):
+def select_element(choices, query, accessor=None):
+    if len(choices) > 5:
+        print("Way too many like '{}' found.".format(query))
+        exit(1)
+    elif len(choices) > 1:
+        for i, c in enumerate(choices):
+            if accessor:
+                print("({}) {}".format(i+1, accessor(c)))
+            else:
+                print("({}) {}".format(i+1, c))
+        choice_id = int(input("Please enter a number between 1 and {}: "
+                              .format(len(choices)))) - 1
+        if choice_id < 0 or choice_id >= len(choices):
+            print("Out of range, stupid.")
+            exit(1)
+        return choices[choice_id]
+    elif len(choices) == 1:
+        return choices[0]
+    elif len(choices) == 0:
+        print("Nothing like '{}' found.".format(query))
+        exit(1)
+
+
+def _general_sale(client, args, aliases, upper_type, function):
     product_query = ' '.join(args['<product>'])
-    products = [p for p in dms.products if p.quantity > 0]
-    product_names = [p.name for p in products]
-    product_index = search_interactive(product_query, product_names)
-    product = products[product_index]
+
+    choices = dms.search_product(client, product_query, aliases)
+    product = select_element(choices, product_query, lambda x: x.name)
 
     user_query = args['--user']
     if user_query is not None:
-        user = search_profile_interactive(dms, user_query)
+        u_choices = dms.search_profile(client, user_query)
+        user = select_element(u_choices, user_query, lambda x: x.name)
         user_id = user.id
         user_name = user.name
     else:
         user_id = None
 
-    if user_id is None or user_id == dms.current_profile.id:
+    if user_id is None or user_id == client.current_profile.id:
         user_name = 'yourself'
 
     if args['--number'] is None:
@@ -184,21 +175,22 @@ def _general_sale(dms, args, upper_type, function):
         print("Bye.")
 
 
-def order(dms, args):
-    _general_sale(dms, args, 'Order', dms.add_order)
+def order(client, aliases, args):
+    _general_sale(client, args, aliases, 'Order', client.add_order)
 
 
-def buy(dms, args):
-    _general_sale(dms, args, 'Buy', dms.add_sale)
+def buy(client, aliases, args):
+    _general_sale(client, args, aliases, 'Buy', client.add_sale)
 
 
-def comment(dms, args):
+def comment(client, args):
     text = ' '.join(args['<text>'])
     user_id = None
     user_query = args['--user']
     if user_query is not None:
-        user_id = search_profile_interactive(dms, user_query).id
-    dms.add_comment(text, user_id)
+        u_choices = dms.search_profile(client, user_query)
+        user_id = select_element(u_choices, user_query, lambda x: x.name).id
+    client.add_comment(text, user_id)
     print("Comment successful.")
 
 
@@ -212,7 +204,7 @@ def load_config():
         if select_yes_no('Generate?'):
             print('Please enter your token:')
             print('(https://drinks.fachschaft.tf > MyAccount > REST Token)')
-            config.set(dms.Sec.GENERAL, 'token', input())
+            config._set(dms.Sec.GENERAL, 'token', input())
             print('Generating...')
             config.write(rcfile)
         else:
@@ -235,9 +227,9 @@ def main():
     if args['show']:
         show(client, args)
     elif args['order']:
-        order(client, args)
+        order(client, config.aliases, args)
     elif args['buy']:
-        buy(client, args)
+        buy(client, config.aliases, args)
     elif args['comment']:
         comment(client, args)
     elif args['setup'] and args['completion']:

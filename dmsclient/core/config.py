@@ -75,7 +75,7 @@ class DmsConfig():
     @property
     def aliases(self):
         """List of aliases. Alias = (lowercase alias, mapped drink)"""
-        return [(x.lowercase(), y) for (x, y) in self._items(Sec.ALIASES)]
+        return [(x.lower(), y) for (x, y) in self._items(Sec.ALIASES)]
 
     def _add_section(self, sec):
         """Wrapper for Configparser.add_section allowing Enum Sec as "sec"."""
