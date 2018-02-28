@@ -1,6 +1,6 @@
 class Profile:
     def __init__(self, id, username, email, allowed_buy,
-                 first_name, last_name, is_staff):
+                 first_name, last_name, is_staff, **kwargs):
         self.id = id
         self.user_name = username
         self.email = email
@@ -22,7 +22,7 @@ class Profile:
 
 
 class Product:
-    def __init__(self, id, name, quantity, price_cent, displayed):
+    def __init__(self, id, name, quantity, price_cent, displayed, **kwargs):
         self.id = id
         self.name = name
         self.quantity = quantity
@@ -31,7 +31,7 @@ class Product:
 
 
 class SaleEntry:
-    def __init__(self, id, profile, product, date):
+    def __init__(self, id, profile, product, date, **kwargs):
         self.id = id
         self.profile = profile
         self.product = product
@@ -39,7 +39,7 @@ class SaleEntry:
 
 
 class Event:
-    def __init__(self, id, name, price_group, active):
+    def __init__(self, id, name, price_group, active, **kwargs):
         self.id = id
         self.name = name
         self.price_group = price_group
@@ -47,6 +47,6 @@ class Event:
 
 
 class Comment:
-    def __init__(self, profile, comment):
+    def __init__(self, profile, comment, **kwargs):
         self.profile = profile
         self.comment = comment
