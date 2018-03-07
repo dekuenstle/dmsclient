@@ -120,8 +120,8 @@ class DmsClient:
             try:
                 error = r.json()
                 raise Exception(error, e)
-            except:
-                raise e
+            except Exception as e2:
+                raise e2
 
     def _get(self, api, constructor=None):
         r = requests.get(self.api_endpoint + api,

@@ -139,7 +139,15 @@ def select_element(choices, query, accessor=None):
 
 
 def _query_products(client, product_query, aliases):
-    return dms.search_product(client, product_query, aliases)
+    try:
+        prod_num = int(product_query)
+        products = [client.product_by_id(prod_num)]
+    except ValueError:
+        products = dms.search_product(client, product_query, aliases)
+    except Exception:
+        products = []
+
+    return products
 
 
 def _general_sale(client, args, product, upper_type, function):
@@ -180,8 +188,9 @@ def order(client, aliases, args):
 
     filtered = [p for p in products if p.quantity > 0]
 
-    if len(filtered) == 0:
-        print("Sold out: {0}".format(", ".join(products)))
+    if len(filtered) == 0 and len(products) != 0:
+        prod_names = [p.name for p in products]
+        print("Sold out: {0}".format(", ".join(prod_names)))
         return
     else:
         product = select_element(filtered, product_query, lambda x: x.name)
