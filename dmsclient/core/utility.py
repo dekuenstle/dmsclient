@@ -7,7 +7,7 @@ def search_product(client, query, aliases=None):
     """Search products retrieved from dms matching the query.
     Optionally provide a list of aliases of the structure (aliase, prod_name)
     """
-    products = [p for p in client.products if p.quantity > 0]
+    products = [p for p in client.products]
 
     result = list()
     if aliases and len(aliases) > 0:

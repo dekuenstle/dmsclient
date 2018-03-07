@@ -138,12 +138,11 @@ def select_element(choices, query, accessor=None):
         exit(1)
 
 
-def _general_sale(client, args, aliases, upper_type, function):
-    product_query = ' '.join(args['<product>'])
+def _query_products(client, product_query, aliases):
+    return dms.search_product(client, product_query, aliases)
 
-    choices = dms.search_product(client, product_query, aliases)
-    product = select_element(choices, product_query, lambda x: x.name)
 
+def _general_sale(client, args, product, upper_type, function):
     user_query = args['--user']
     if user_query is not None:
         u_choices = dms.search_profile(client, user_query)
@@ -176,11 +175,26 @@ def _general_sale(client, args, aliases, upper_type, function):
 
 
 def order(client, aliases, args):
-    _general_sale(client, args, aliases, 'Order', client.add_order)
+    product_query = ' '.join(args['<product>'])
+    products = _query_products(client, product_query, aliases)
+
+    filtered = [p for p in products if p.quantity > 0]
+
+    if len(filtered) == 0:
+        print("Sold out: {0}".format(", ".join(products)))
+        return
+    else:
+        product = select_element(filtered, product_query, lambda x: x.name)
+
+    _general_sale(client, args, product, 'Order', client.add_order)
 
 
 def buy(client, aliases, args):
-    _general_sale(client, args, aliases, 'Buy', client.add_sale)
+    product_query = ' '.join(args['<product>'])
+    products = _query_products(client, product_query, aliases)
+
+    product = select_element(products, product_query, lambda x: x.name)
+    _general_sale(client, args, product, 'Buy', client.add_sale)
 
 
 def comment(client, args):
