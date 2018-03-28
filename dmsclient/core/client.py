@@ -18,7 +18,9 @@ class DmsClient:
 
     async def __aenter__(self):
         self.session = aiohttp.ClientSession(
-            headers={'Authorization': 'Token ' + self.token})
+            headers={
+                'Authorization': 'Token ' + self.token,
+                'Content-type': 'application/json'})
         return self
 
     async def __aexit__(self, *args):
@@ -75,7 +77,7 @@ class DmsClient:
             assert isinstance(profile_id, int)
 
         return await self._post(
-            '/order/',
+            '/orders/',
             {"profile": profile_id, "product": product_id})
 
     async def add_sale(self, product_id, profile_id=None):
@@ -86,7 +88,7 @@ class DmsClient:
             assert isinstance(profile_id, int)
 
         return await self._post(
-            '/sale/',
+            '/sales/',
             {"profile": profile_id, "product": product_id})
 
     async def add_comment(self, comment, profile_id=None):
@@ -122,6 +124,7 @@ class DmsClient:
                         return [constructor(**d) for d in dicts]
 
     async def _post(self, api, data):
-        async with self.session.post(self.api_endpoint + api, data=data) as r:
-            if not r.raise_for_status():
-                return await r.json()
+        print("Post", api)
+        async with self.session.post(self.api_endpoint + api, json=data) as r:
+            print("Result", api)
+            r.raise_for_status()

@@ -160,14 +160,12 @@ def select_element(choices, query, accessor=None):
         exit(1)
 
 
-def _query_products(client, product_query, aliases):
+async def _query_products(client, query, aliases):
     try:
-        prod_num = int(product_query)
-        products = [client.product_by_id(prod_num)]
+        prod_id = int(query)
+        products = [await client.product_by_id(prod_id)]
     except ValueError:
-        products = dms.search_product(client, product_query, aliases)
-    except Exception:
-        products = []
+        products = dms.search_product(query, await client.products, aliases)
 
     return products
 
@@ -184,23 +182,16 @@ async def _query_profiles(client, query):
     return users
 
 
-def _general_sale(client, args, product, upper_type, function):
-    user_query = args['--user']
-    if user_query is not None:
-        u_choices = dms.search_profile(client, user_query)
-        user = select_element(u_choices, user_query, lambda x: x.name)
-        user_id = user.id
-        user_name = user.name
-    else:
-        user_id = None
-
-    if user_id is None or user_id == client.current_profile.id:
-        user_name = 'yourself'
-
+async def _general_sale(args, product, profile, upper_type, function):
     if args['--number'] is None:
         number = 1
     else:
         number = int(args['--number'])
+
+    if profile.is_current:
+        user_name = 'yourself'
+    else:
+        user_name = profile.name
 
     if (args['--force'] or
         select_yes_no('{} {} {} ({:.2f}€) for {}?'
@@ -209,17 +200,22 @@ def _general_sale(client, args, product, upper_type, function):
                               product.name,
                               product.price_cent/100,
                               user_name))):
-        for _ in range(number):
-            function(product.id, user_id)
+        await asyncio.gather(
+            *[function(product.id, profile.id) for _ in range(number)])
         print("{} successful.".format(upper_type))
     else:
         print("Bye.")
 
 
-def order(client, aliases, args):
-    product_query = ' '.join(args['<product>'])
-    products = _query_products(client, product_query, aliases)
+async def order(loop, client, aliases, args):
+    prod_query = ' '.join(args['<product>'])
+    user_query = args['--user']
+    products_req = loop.create_task(
+        _query_products(client, prod_query, aliases))
+    profiles_req = loop.create_task(
+        _query_profiles(client, user_query))
 
+    products = await products_req
     filtered = [p for p in products if p.quantity > 0]
 
     if len(filtered) == 0 and len(products) != 0:
@@ -227,17 +223,38 @@ def order(client, aliases, args):
         print("Sold out: {0}".format(", ".join(prod_names)))
         return
     else:
-        product = select_element(filtered, product_query, lambda x: x.name)
+        product = select_element(filtered, prod_query, lambda x: x.name)
 
-    _general_sale(client, args, product, 'Order', client.add_order)
+    users = await profiles_req
+    if len(users) == 1:
+        user = users[0]
+    else:
+        user = select_element(users, user_query, lambda x: x.name)
+
+    await _general_sale(args, product, user, 'Order', client.add_order)
 
 
-def buy(client, aliases, args):
-    product_query = ' '.join(args['<product>'])
-    products = _query_products(client, product_query, aliases)
+async def buy(loop, client, aliases, args):
+    prod_query = ' '.join(args['<product>'])
+    user_query = args['--user']
+    products_req = loop.create_task(
+        _query_products(client, prod_query, aliases))
+    profiles_req = loop.create_task(
+        _query_profiles(client, user_query))
 
-    product = select_element(products, product_query, lambda x: x.name)
-    _general_sale(client, args, product, 'Buy', client.add_sale)
+    products = await products_req
+    if len(products) == 1:
+        product = products[0]
+    else:
+        product = select_element(products, prod_query, lambda x: x.name)
+
+    users = await profiles_req
+    if len(users) == 1:
+        user = users[0]
+    else:
+        user = select_element(users, user_query, lambda x: x.name)
+
+    await _general_sale(args, product, user, 'Buy', client.add_sale)
 
 
 async def comment(client, args):
@@ -248,7 +265,6 @@ async def comment(client, args):
     if len(users) == 1:
         user = users[0]
     else:
-        users = dms.search_profile(user_query, users)
         user = select_element(users, user_query, lambda x: x.name)
 
     await client.add_comment(text, user.id)
@@ -288,9 +304,9 @@ async def async_main(loop):
         if args['show']:
             await show(loop, client, args)
         elif args['order']:
-            order(client, config.aliases, args)
+            await order(loop, client, config.aliases, args)
         elif args['buy']:
-            buy(client, config.aliases, args)
+            await buy(loop, client, config.aliases, args)
         elif args['comment']:
             await comment(client, args)
         elif args['setup'] and args['completion']:
