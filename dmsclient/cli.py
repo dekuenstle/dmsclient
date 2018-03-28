@@ -169,6 +169,18 @@ def _query_products(client, product_query, aliases):
 
     return products
 
+async def _query_profiles(client, query):
+    try:
+        if query is None:
+            users = [await client.current_profile]
+        else:
+            user_id = int(query)
+            users = [await client.profile_by_id(user_id)]
+    except ValueError:
+        users = dms.search_profile(query, await client.profiles)
+
+    return users
+
 
 def _general_sale(client, args, product, upper_type, function):
     user_query = args['--user']
@@ -226,14 +238,18 @@ def buy(client, aliases, args):
     _general_sale(client, args, product, 'Buy', client.add_sale)
 
 
-def comment(client, args):
+async def comment(client, args):
     text = ' '.join(args['<text>'])
-    user_id = None
     user_query = args['--user']
-    if user_query is not None:
-        u_choices = dms.search_profile(client, user_query)
-        user_id = select_element(u_choices, user_query, lambda x: x.name).id
-    client.add_comment(text, user_id)
+    users = await _query_profiles(client, user_query)
+
+    if len(users) == 1:
+        user = users[0]
+    else:
+        users = dms.search_profile(user_query, users)
+        user = select_element(users, user_query, lambda x: x.name)
+
+    await client.add_comment(text, user.id)
     print("Comment successful.")
 
 
@@ -274,7 +290,7 @@ async def async_main(loop):
         elif args['buy']:
             buy(client, config.aliases, args)
         elif args['comment']:
-            comment(client, args)
+            await comment(client, args)
         elif args['setup'] and args['completion']:
             docopt_completion('dms')
             print('-> start a new shell to test completion')
