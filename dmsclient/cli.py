@@ -2,7 +2,7 @@
 
 Usage:
   dms show (user|users|orders|products|events|comments)
-  dms show [-d <d>] sale
+  dms show [-d <d>] sales
   dms (order|buy) [-f] [-n <n>] [-u <u>] <product>...
   dms comment [-u <u>] <text>...
   dms setup completion
@@ -17,6 +17,7 @@ Options:
   -u <user>, --user=<user>  (Partial) user's name. E.g. 'stef' for 'Stefan'
   --version                 Show version.
 """
+import asyncio
 import os
 import re
 import configparser
@@ -38,7 +39,7 @@ def print_users(users):
                                            'User Name', 'Allowed to Buy']))
 
 
-def print_sale_entries(dms, sale_entries):
+def print_sale_entries(sale_entries):
     table = ((se.date.strftime('%d.%m.%Y %H:%M'),
               se.product.name,
               se.profile.name)
@@ -65,7 +66,7 @@ def print_products(products):
     print(tabulate(sorted(table), headers=['Name', 'Quantity', 'Price']))
 
 
-def print_comments(dms, comments):
+def print_comments(comments):
     table = ((comment.profile.name, comment.comment)
              for comment in comments)
     print(tabulate(sorted(table), headers=['Profile', 'Text']))
@@ -77,22 +78,41 @@ def print_events(events):
     print(tabulate(sorted(table), headers=['Name', 'Price Group', 'Active']))
 
 
-def show(client, args):
+async def show(loop, client, args):
     if args['user']:
-        print_users([client.current_profile])
+        print_users([await client.current_profile])
     elif args['users']:
-        print_users(client.profiles)
+        print_users(await client.profiles)
     elif args['orders']:
-        print_sale_entries(client, client.orders)
-    elif args['sale']:
+        orders = loop.create_task(client.orders)
+        profiles = loop.create_task(client.profiles)
+        products = loop.create_task(client.products)
+        print_sale_entries(
+            dms.construct_sale_entries(
+                await orders,
+                await profiles,
+                await products))
+    elif args['sales']:
         days = int(args['--days'])
-        print_sale_entries(client, client.sale_history(days))
+        sales = loop.create_task(client.sale_history(days))
+        profiles = loop.create_task(client.profiles)
+        products = loop.create_task(client.products)
+        print_sale_entries(
+            dms.construct_sale_entries(
+                await sales,
+                await profiles,
+                await products))
     elif args['products']:
-        print_products(client.products)
+        print_products(await client.products)
     elif args['comments']:
-        print_comments(client, client.comments)
+        comments = loop.create_task(client.comments)
+        profiles = loop.create_task(client.profiles)
+        print_comments(
+            dms.construct_comments(
+                await comments,
+                await profiles))
     elif args['events']:
-        print_events(client.events)
+        print_events(await client.events)
     else:
         raise NotImplementedError()
 
@@ -242,24 +262,30 @@ def load_config():
     return config
 
 
-def main():
+async def async_main(loop):
     args = docopt(__doc__, version='dmsclient {}'.format(dms.__version__))
     config = load_config()
-    client = dms.DmsClient(config.token, config.api)
 
-    if args['show']:
-        show(client, args)
-    elif args['order']:
-        order(client, config.aliases, args)
-    elif args['buy']:
-        buy(client, config.aliases, args)
-    elif args['comment']:
-        comment(client, args)
-    elif args['setup'] and args['completion']:
-        docopt_completion('dms')
-        print('-> start a new shell to test completion')
-    else:
-        raise NotImplementedError()
+    async with dms.DmsClient(config.token, config.api) as client:
+        if args['show']:
+            await show(loop, client, args)
+        elif args['order']:
+            order(client, config.aliases, args)
+        elif args['buy']:
+            buy(client, config.aliases, args)
+        elif args['comment']:
+            comment(client, args)
+        elif args['setup'] and args['completion']:
+            docopt_completion('dms')
+            print('-> start a new shell to test completion')
+        else:
+            raise NotImplementedError()
+
+
+def main():
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(async_main(loop))
+
 
 if __name__ == "__main__":
     main()

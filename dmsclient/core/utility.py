@@ -1,7 +1,11 @@
 import re
 
-__all__ = ['search_product', 'search_profile']
+from datetime import datetime
+from .models import Comment, SaleEntry
 
+__all__ = [ 
+    'search_product', 'search_profile', 
+    'construct_sale_entries', 'construct_comments'] 
 
 def search_product(client, query, aliases=None):
     """Search products retrieved from dms matching the query.
@@ -47,3 +51,20 @@ def _search_interactive(query, choices, accessor=None):
 
     result = [c for c in choices if filter_(c)]
     return result
+
+
+def construct_sale_entries(sales, profiles, products):
+    profiles = {p.id: p for p in profiles}
+    products = {p.id: p for p in products}
+    return [SaleEntry(id=s['id'],
+                      profile=profiles[s['profile']],
+                      product=products[s['product']],
+                      date=datetime.strptime(s['date'],
+                                             '%Y-%m-%dT%H:%M:%S.%f'))
+            for s in sales]
+
+
+def construct_comments(comments, profiles):
+    profiles = {p.id: p for p in profiles}
+    return [Comment(profile=profiles[c['profile']],
+                    comment=c['comment']) for c in comments]
