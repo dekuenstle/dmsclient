@@ -33,10 +33,12 @@ def print_users(users):
     table = ((user.first_name,
               user.last_name,
               "({})".format(user.user_name),
-              user.allowed_buy)
+              user.allowed_buy,
+              "X" if user.is_current else "")
              for user in users)
     print(tabulate(sorted(table), headers=['First Name', 'Last Name',
-                                           'User Name', 'Allowed to Buy']))
+                                           'User Name', 'Allowed to Buy',
+                                           'Current']))
 
 
 def print_sale_entries(sale_entries):

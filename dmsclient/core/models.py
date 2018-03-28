@@ -1,6 +1,6 @@
 class Profile:
     def __init__(self, id, username, email, allowed_buy,
-                 first_name, last_name, is_staff, **kwargs):
+                 first_name, last_name, is_staff, is_current, **kwargs):
         self.id = id
         self.user_name = username
         self.email = email
@@ -8,6 +8,7 @@ class Profile:
         self.first_name = first_name
         self.last_name = last_name
         self.is_staff = is_staff
+        self.is_current = is_current
 
     @property
     def name(self):
