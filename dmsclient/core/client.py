@@ -110,9 +110,7 @@ class DmsClient:
              "active": is_active})
 
     async def _get(self, api, constructor=None):
-        print("Get", api)
         async with self.session.get(self.api_endpoint + api) as r:
-            print("Result", api)
             if not r.raise_for_status():
                 dicts = await r.json()
                 if constructor is None:
@@ -124,7 +122,5 @@ class DmsClient:
                         return [constructor(**d) for d in dicts]
 
     async def _post(self, api, data):
-        print("Post", api)
         async with self.session.post(self.api_endpoint + api, json=data) as r:
-            print("Result", api)
             r.raise_for_status()
