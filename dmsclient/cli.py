@@ -301,7 +301,7 @@ async def async_main(loop):
     args = docopt(__doc__, version='dmsclient {}'.format(dms.__version__))
     config = load_config()
 
-    async with dms.DmsClient(config.token, config.api) as client:
+    async with dms.AsyncDmsClient(config.token, config.api) as client:
         if args['show']:
             await show(loop, client, args)
         elif args['order']:
